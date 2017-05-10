@@ -29,11 +29,14 @@ public:
 		obColour = set_obColour;
 	}
 };
+
 class moTracker: public ScreenObs {
 public:
 	//attributes
 	Mat prePrev, prevFrame, curFrame; //saved frames for finding differences
 	//includes 2nd preivous frame, previous frame, and current frame
+	Mat colorOutput;
+
 	int xROI, yROI, wROI, hROI; // set ROI's dimensions
 	int xCOM, yCOM; //coordinates of Centre of Mass
 	bool firstRun; //check whether it is the first time the programme runs
@@ -47,6 +50,7 @@ public:
 	int p2Factor; // applied in calculation depends on which player is using function
 	bool player2; // check if the ROI belongs to player 2
 	bool safe;
+
 	moTracker () {
 		//default setROI
 		xROI = 100;
@@ -61,8 +65,10 @@ public:
 		player2 = false;
 		safe = true;
 	}
+	
 	void feedNewframe (Mat frame) {
 		Mat diffPrev;
+
 		int x, y; //coordinates of pixel
 		//brightness of each pixel - on x,y-axis and the sum
 		int xMass, yMass, sMass, m;
@@ -79,14 +85,16 @@ public:
 		curFrame.copyTo (prevFrame);
 		frame.copyTo (curFrame);
 
-		absdiff (prePrev, frame, diffPrev);
-		cvtColor (diffPrev, diffPrev, CV_BGR2GRAY, 1);
+		inRange(frame, Scalar(0,0,160), Scalar(80,80,255), colorOutput);
+
+//		absdiff (prePrev, frame, diffPrev);
+//		cvtColor (diffPrev, diffPrev, CV_BGR2GRAY, 1);
 
 	// Compute COM
 		sMass = xMass = yMass = 0;
 		for (y = yROI; y < yROI + hROI; y++) {
 			for (x = xROI; x < xROI + wROI; x++) {
-				m = diffPrev.at<unsigned char>(y,x);
+				m = colorOutput.at<unsigned char>(y,x);
 				sMass += m;
 				xMass += m*x;
 				yMass += m*y;
@@ -97,6 +105,7 @@ public:
 			yCOM = yMass/sMass;
 		}
 	}
+
 	void updateROI (Mat frame) {
 		xROI = xCOM - wROI/2;
 		yROI = yCOM - hROI/2;
