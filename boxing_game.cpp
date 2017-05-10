@@ -40,6 +40,13 @@ public:
 
 	int topLim, leftLim, botLim, rLim; // ROI can only move within this region
 	bool limSet; // are specific limits set for ROI?
+
+	// Attributes of a player
+	int xHead, yHead, headRad; //head set
+	int xlHand, ylHand, handRad, xrHand, yrHand; //hand set
+	int p2Factor; // applied in calculation depends on which player is using function
+	bool player2; // check if the ROI belongs to player 2
+	bool safe;
 	moTracker () {
 		//default setROI
 		xROI = 100;
@@ -50,6 +57,9 @@ public:
 		//loop check
 		firstRun = true; //by default loop has to go through first run
 		limSet = false;  //by default no limits are set
+		p2Factor = 1;
+		player2 = false;
+		safe = true;
 	}
 	void feedNewframe (Mat frame) {
 		Mat diffPrev;
@@ -87,9 +97,6 @@ public:
 			yCOM = yMass/sMass;
 		}
 	}
-	void draw (Mat frame) {
-		rectangle (frame, Rect(xROI, yROI, wROI, hROI), obColour, 2);
-	}
 	void updateROI (Mat frame) {
 		xROI = xCOM - wROI/2;
 		yROI = yCOM - hROI/2;
@@ -115,6 +122,9 @@ public:
 				yROI = botLim - hROI;
 			}
 	}
+	void drawROI (Mat frame) {
+		rectangle (frame, Rect(xROI, yROI, wROI, hROI), obColour, 2);
+	}
 
 	// set ROI accordingly
 	void setROI (int set_xROI, int set_yROI, int set_wROI,
@@ -134,13 +144,12 @@ public:
 		limSet = true;
 	}
 	void separateROI (moTracker t1, int r1, int r2) {
-		// keeps 2 objects on screen from overlapping one another
-		// t1 has the coordinates and radius of reference object
-		// t2 has the coordinates and radius of the updated object
+		// keeps 2 ROIs on screen from overlapping one another
+		// t1 has the coordinates and radius of reference ROI
+		//the ROI using this function will have its position changed
 		double delX = 0.0, delY = 0.0, rDist = 0.0;
 		double alpha = 0.0; // This is the angle between the second object and
 				// the horizon of the reference object (range from 0 to pi)
-		//	const double pi = 3.14159265358979323846;
 		delX = xCOM - t1.xCOM;
 		delY = yCOM - t1.yCOM;
 		rDist = r1 + r2; // Magnitude of total radius distance between objects
@@ -154,50 +163,27 @@ public:
 			}
 			xCOM = (int) (t1.xCOM + cos(alpha)*rDist);
 			yCOM = (int) (t1.yCOM + sin(alpha)*rDist);
-//			cout<<"Updated: "<< xCOM <<", "<< yCOM <<endl;
 		}
 	}
-};
-// Finish motion tracker setup
-
-class Player: public ScreenObs {
-public:
-	// Attributes of a player
-	int xHead, yHead, headRad; //head set
-	int xlHand, ylHand, handRad, xrHand, yrHand; //hand set
-	int headROIradius, handROIradius;
-	bool player2;
-	int p2Factor;
-	int xBar, yBar, wBar, hBar, maxStat; //Stamina bar attributes
-	bool firstRun;
-	Player () {
-		firstRun = true;
-		player2 = false;
-		p2Factor = 1;
-		hBar = 30;
-		maxStat = 160;
-	}
 	// Behaviours of a player
-	void draw (Mat frame, moTracker head, moTracker leftFist, moTracker rFist) {
+	void drawPlayer (Mat frame, moTracker leftFist, moTracker rFist) {
 		if (player2) {
-			xHead = frame.cols - head.xCOM;
-			yHead = frame.rows - head.yCOM;
+			xHead = frame.cols - xCOM;
+			yHead = frame.rows - yCOM;
 			xlHand = frame.cols - leftFist.xCOM;
 			ylHand = frame.rows - leftFist.yCOM;
 			xrHand = frame.cols - rFist.xCOM;
 			yrHand = frame.rows - rFist.yCOM;
 		} else {
-			xHead = head.xCOM;
-			yHead = head.yCOM;
+			xHead = xCOM;
+			yHead = yCOM;
 			xlHand = leftFist.xCOM;
 			ylHand = leftFist.yCOM;
 			xrHand = rFist.xCOM;
 			yrHand = rFist.yCOM;
 		}
-		headRad = (int)(head.wROI/4 * sqrt(2.0));
+		headRad = (int)(wROI/4 * sqrt(2.0));
 		handRad = (int)(rFist.wROI/4);
-		headROIradius = (int)(head.wROI/3);
-		handROIradius = (int)(leftFist.wROI/3);
 
 				// A black background to erase previous image
 		rectangle (frame, Rect(0,0, frame.cols, frame.rows), Scalar (0,0,0), -1);
@@ -216,8 +202,54 @@ public:
 		p2Factor = -1;
 		player2 = true;
 	}
-	void stamina (Mat frame, Player opponent) {
-		if (player2) {
+	void separatePlayers (Mat frame, moTracker t1, int r1, int r2, bool hit) { // Hit
+		// keeps 2 players from overlapping one another
+		// t1 has the coordinates and radius of reference player
+		//the ROI using this function will have its position changed
+		double delX = 0.0, delY = 0.0, rDist = 0.0;
+		double alpha = 0.0; // This is the angle between the second object and
+				// the horizon of the reference object (range from 0 to pi)
+		delX = p2Factor*((xCOM + t1.xCOM) - frame.cols);
+		delY = p2Factor*((yCOM + t1.yCOM) - frame.rows);
+		rDist = r1 + r2; // Magnitude of total radius distance between objects
+			// Calculate the distance between two object's centres
+		int dist = round(sqrt(pow(delX, 2.0) + pow (delY, 2.0)));
+
+		if (dist < rDist) {
+			alpha = acos ((double) (delX/dist));
+			if (delY < 0) {
+				alpha = -alpha;
+			}
+			xCOM = (int) (frame.cols - t1.xCOM + p2Factor*cos(alpha)*rDist);
+			yCOM = (int) (frame.rows - t1.yCOM + p2Factor*sin(alpha)*rDist);
+//			cout<<"Updated: "<< xCOM <<", "<< yCOM <<endl;
+			if (hit) {
+				t1.safe = false; //???????????????????????????????????????????????????????
+			}
+		} else if (dist > rDist + 10 && hit == true) {
+			t1.safe = true;
+		}
+		//			cout<<"Updated safe zone: "<< t1.safe <<endl;
+	}
+	void safezone () {
+
+	}
+};
+// Finish motion tracker & player setup
+
+class Stamina: public moTracker { //(hit, defend, recovery)
+public:
+	// Attributes
+	int xBar, yBar, wBar, hBar, maxStat; //Stamina bar attributes
+	// Behaviours
+	Stamina () {
+		hBar = 30;
+		maxStat = 160;
+	}
+	void bar (Mat frame, moTracker player) {
+		int xBox, yBox, wBox, hBox;
+		bool firstRun = true;
+		if (player.player2) {
 			xBar = (int)(frame.cols*1/16);
 			yBar = (int)(frame.rows*1/16);
 		} else {
@@ -227,18 +259,15 @@ public:
 		if (firstRun) {
 			wBar = maxStat;
 			firstRun = false;
-		}/////////////////////////////////////////////////////////
+			xBox = xBar - 5;
+			yBox = yBar - 5;
+			wBox = wBar + 10;
+			hBox = hBar + 10;
+		}
 
-		rectangle (frame, Rect(xBar, yBar, wBar, hBar), obColour, -1);
+		rectangle (frame, Rect(xBar, yBar, wBar, hBar), Scalar (100,255,100), -1);
+		rectangle (frame, Rect(xBox, yBox, wBox, hBox), Scalar (255,255,255), 2);
 	}
-};
-//Finish setting up player images
-
-class Stamina: public ScreenObs { //(hit, defend, recovery), bar
-public:
-	// Attributes
-
-	// Behaviours
 };
 
 int main(  int argc, char** argv ) {
@@ -259,24 +288,21 @@ int main(  int argc, char** argv ) {
 //	cap2 >> frame2;
 
 	Mat game = Mat (frame.rows, frame.cols, CV_8UC3);
-	moTracker p1Head, p1LHand, p1RHand;
-	Player p1;
-	p1.p2();
+	moTracker p1, p1LHand, p1RHand;
+//	p1.p2(); p1LHand.p2(); p1RHand.p2();					//delete/////////////////////
+//	moTracker p2, p2LHand, p2RHand;
+//	p2.p2(); p2LHand.p2(); p2RHand.p2();
+	Stamina p1Stat;
 
-	p1Head.setROI (frame.cols/2 - 100, 200, 200, 200);
-	p1Head.setLim (frame.rows/2, (int)(frame.cols*1/7), frame.rows,
+	p1.setROI (frame.cols/2 - 100, 200, 200, 200);
+	p1.setLim (frame.rows/2, (int)(frame.cols*1/7), frame.rows,
 			(int)(frame.cols*6/7));
 	p1LHand.setROI (10, 300, 150, 150);
-	p1LHand.setColour (Scalar (255,0,0));					//delete
+	p1LHand.setColour (Scalar (255,0,0));					//delete/////////////////////
 	p1RHand.setROI (frame.cols-10, 300, 150, 150);
 
-//	moTracker p2Head, p2LHand, p2RHand;
-//	Player p2;
-//	p2.p2();
-//
-//	p2Head.setROI (frame2.cols/2 - 100, 200, 200, 200);
-//	p2LHand.setROI (10, 300, 150, 150);
-//	p2RHand.setROI (frame2.cols-10, 300, 150, 150);
+	int headROIradius = (int)(p1.wROI/3);
+	int handROIradius = (int)(p1LHand.wROI/3);
 
 	namedWindow("Player 1 ROI", CV_WINDOW_AUTOSIZE);
 	namedWindow("Player 2 ROI", CV_WINDOW_NORMAL);
@@ -295,17 +321,13 @@ int main(  int argc, char** argv ) {
 		flip (frame, frame, 1); // flip frame horizontally
 		flip (frame2, frame2, 1);
 				//Calculate COM and feed each frame captured
-		p1Head.feedNewframe(frame);
+		p1.feedNewframe(frame);
 		p1LHand.feedNewframe(frame);
 		p1RHand.feedNewframe(frame);
 
-//		p2Head.feedNewframe(frame2);
-//		p2LHand.feedNewframe(frame2);
-//		p2RHand.feedNewframe(frame2);
-
-
-		p1LHand.separateROI (p1Head, p1.headROIradius, p1.handROIradius);
-		p1RHand.separateROI (p1Head, p1.headROIradius, p1.handROIradius);
+				// Separate the ROIs of one player
+		p1LHand.separateROI (p1, headROIradius, handROIradius);
+		p1RHand.separateROI (p1, headROIradius, handROIradius);
 		if (p1.xlHand + p1.handRad < p1.xHead) {
 			p1RHand.separateROI (p1LHand, p1.handRad, p1.handRad);
 		}
@@ -313,26 +335,22 @@ int main(  int argc, char** argv ) {
 			p1LHand.separateROI (p1RHand, p1.handRad, p1.handRad);
 		}
 
-		p1Head.updateROI(frame);
+		p1.updateROI(frame);
 		p1LHand.updateROI(frame);
 //delete		cout<<"New COM: "<< p1LHand.xCOM<<", "<< p1LHand.yCOM <<endl;
 		p1RHand.updateROI(frame);
 
 				//Visualise each ROI on frame
-		p1Head.draw(frame);
-		p1LHand.draw(frame);
-		p1RHand.draw(frame);
+		p1.drawROI (frame);
+		p1LHand.drawROI (frame);
+		p1RHand.drawROI (frame);
 
-//		p2Head.draw(frame2);
-//		p2LHand.draw(frame2);
-//		p2RHand.draw(frame2);
 		imshow("Player 1 ROI", frame);
 //		imshow("Player 2 ROI", frame2);
 
-		p1.draw (game, p1Head, p1LHand, p1RHand);
-//		p2.draw (game, p2Head, p2LHand, p2RHand);
+		p1.drawPlayer (game, p1LHand, p1RHand);
+		p1Stat.bar (game, p1);
 
-//		p1.stamina (game);
 		imshow("Boxing Game 1", game);
 //		flip (game, game, -1); // flip image on both axes
 //		imshow("Boxing Game 2", game);
