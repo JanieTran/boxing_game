@@ -52,6 +52,7 @@ public:
 	//Stamina bar attributes
 	int xBar, yBar, wBar, hBar, maxStat;
 	int xBox, yBox, wBox, hBox;
+	int countFrame;
 	moTracker () {
 		//default setROI
 		xROI = 100;
@@ -70,6 +71,7 @@ public:
 		isTouching = false;
 		hit = false;
 		hitNo = 0;
+		countFrame = 0;
 	}
 	void feedNewframe (Mat frame) {
 		Mat diffPrev;
@@ -83,6 +85,19 @@ public:
 			frame.copyTo (prePrev);
 			xCOM = xROI + wROI/2;
 			yCOM = yROI + hROI/2;
+		// Set up stamina bar
+			if (player2) {
+				xBar = (int)(frame.cols*1/16);
+				yBar = (int)(frame.rows*1/16);
+			} else {
+				xBar = (int)(frame.cols*11/16);
+				yBar = (int)(frame.rows*14/16);
+			}
+			wBar = maxStat;
+			xBox = xBar - 5;
+			yBox = yBar - 5;
+			wBox = wBar + 10;
+			hBox = hBar + 10;
 			firstRun = false; // 1st run is over
 		}
 		prevFrame.copyTo (prePrev);
@@ -214,7 +229,8 @@ public:
 		// keeps 2 players from overlapping one another
 		// t1 has the coordinates and radius of reference player
 		//the ROI using this function will have its position changed
-		double delX = 0.0, delY = 0.0, rDist = 0.0;
+		int rDist = 0;
+		double delX = 0.0, delY = 0.0;
 		double alpha = 0.0; // This is the angle between the second object and
 				// the horizon of the reference object (range from 0 to pi)
 		delX = p2Factor*((xCOM + t1.xCOM) - frame.cols);
@@ -230,18 +246,17 @@ public:
 			}
 			xCOM = (int) (frame.cols - t1.xCOM + p2Factor*cos(alpha)*rDist);
 			yCOM = (int) (frame.rows - t1.yCOM + p2Factor*sin(alpha)*rDist);
-//			cout<<"Updated: "<< xCOM <<", "<< yCOM <<endl;
-			if (Hit) {
-				isTouching = true;
-			}
-		} else if (dist > rDist + 100 && Hit == true) {
+
+		}
+		if (dist > rDist - 10 && dist < rDist + 10 && Hit == true){
+			isTouching = true;
+		}
+		else if (dist > (rDist + 100) && Hit == true) {
 			isTouching = false;
 		}
-		//			cout<<"Updated safe zone: "<< t1.safe <<endl;
 	}
 	void stamina (Mat frame, moTracker LFist, moTracker rFist) {
 		// This function is only used by head motion tracker of each player
-		int countFrame = 0;
 		if (LFist.isTouching || rFist.isTouching) {
 			if (!hit && hitNo < 5) {
 				hitNo ++;
@@ -250,28 +265,12 @@ public:
 		} else if (!LFist.isTouching && !rFist.isTouching) { hit = false; }
 		if (!hit) {
 			countFrame++;
-			if (countFrame % 300 == 0 && hitNo > 0) {
+			if (countFrame % 100 == 0 && hitNo > 0) {
 				hitNo--;
 			}
 		} else countFrame = 0;
-
-		bool firstRun = true;
-		if (firstRun) {
-			if (player2) {
-				xBar = (int)(frame.cols*1/16);
-				yBar = (int)(frame.rows*1/16);
-			} else {
-				xBar = (int)(frame.cols*11/16);
-				yBar = (int)(frame.rows*14/16);
-			}
-			wBar = maxStat;
-			xBox = xBar - 5;
-			yBox = yBar - 5;
-			wBox = wBar + 10;
-			hBox = hBar + 10;
-			firstRun = false;
-		}
-		wBar = (5 - hitNo)/5*maxStat;
+				// Visualise stamina bar
+		wBar = (5 - hitNo)*maxStat/5;
 
 		if (!player2) {
 			xBar = (int)(frame.cols*11/16) + hitNo/5*maxStat;
@@ -305,7 +304,7 @@ int main(  int argc, char** argv ) {
 		return -1;
 	}
 	cap  >> frame;
-	cap2 >> frame2;
+	cap2 >> frame2;						
 
 			// Declare players
 	Mat game = Mat (frame.rows, frame.cols, CV_8UC3);
@@ -343,7 +342,7 @@ int main(  int argc, char** argv ) {
 		}
 
 		cap >> frame; // get a new frame from camera
-		cap2 >> frame2;
+		cap2 >> frame2;							
 
 		flip (frame, frame, 1); // flip frame horizontally
 		flip (frame2, frame2, 1);
@@ -375,25 +374,25 @@ int main(  int argc, char** argv ) {
 
 		// Separate the two players
 		if (p1.ylHand - p1.handRad >= frame.rows/2) {
-			p2LHand.separatePlayers(frame, p1LHand, handROIradius, handROIradius, false);
-			p2RHand.separatePlayers(frame, p1LHand, handROIradius, handROIradius, false);
-			p2LHand.separatePlayers(frame, p1RHand, handROIradius, handROIradius, false);
-			p2RHand.separatePlayers(frame, p1RHand, handROIradius, handROIradius, false);
+			p2LHand.separatePlayers(frame, p1LHand, p1.handRad, p2.handRad, false);
+			p2RHand.separatePlayers(frame, p1LHand, p1.handRad, p2.handRad, false);
+			p2LHand.separatePlayers(frame, p1RHand, p1.handRad, p2.handRad, false);
+			p2RHand.separatePlayers(frame, p1RHand, p1.handRad, p2.handRad, false);
 		} else {
-			p1LHand.separatePlayers(frame, p2LHand, handROIradius, handROIradius, false);
-			p1RHand.separatePlayers(frame, p2LHand, handROIradius, handROIradius, false);
-			p1LHand.separatePlayers(frame, p2RHand, handROIradius, handROIradius, false);
-			p1RHand.separatePlayers(frame, p2RHand, handROIradius, handROIradius, false);
+			p1LHand.separatePlayers(frame, p2LHand, p1.handRad, p2.handRad, false);
+			p1RHand.separatePlayers(frame, p2LHand, p1.handRad, p2.handRad, false);
+			p1LHand.separatePlayers(frame, p2RHand, p1.handRad, p2.handRad, false);
+			p1RHand.separatePlayers(frame, p2RHand, p1.handRad, p2.handRad, false);
 		}
-		p2LHand.separatePlayers(frame, p1, headROIradius, handROIradius, true);
-		p2RHand.separatePlayers(frame, p1, headROIradius, handROIradius, true);
-		p1LHand.separatePlayers(frame, p2, headROIradius, handROIradius, true);
-		p1RHand.separatePlayers(frame, p2, headROIradius, handROIradius, true);
+		p2LHand.separatePlayers(frame, p1, p1.headRad, p2.handRad, true);
+		p2RHand.separatePlayers(frame, p1, p1.headRad, p2.handRad, true);
+		p1LHand.separatePlayers(frame, p2, p2.headRad, p1.handRad, true);
+		p1RHand.separatePlayers(frame, p2, p2.headRad, p1.handRad, true);
 
 		// Update final position of ROI
-//		p1.updateROI(frame);
-//		p1LHand.updateROI(frame);
-//		p1RHand.updateROI(frame);
+		p1.updateROI(frame);
+		p1LHand.updateROI(frame);
+		p1RHand.updateROI(frame);
 
 		p2.updateROI(frame2);
 		p2LHand.updateROI(frame2);
