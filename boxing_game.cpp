@@ -29,14 +29,11 @@ public:
 		obColour = set_obColour;
 	}
 };
-
 class moTracker: public ScreenObs {
 public:
-	//attributes
+	// ROI Attributes
 	Mat prePrev, prevFrame, curFrame; //saved frames for finding differences
 	//includes 2nd preivous frame, previous frame, and current frame
-	Mat colorOutput;
-
 	int xROI, yROI, wROI, hROI; // set ROI's dimensions
 	int xCOM, yCOM; //coordinates of Centre of Mass
 	bool firstRun; //check whether it is the first time the programme runs
@@ -49,8 +46,12 @@ public:
 	int xlHand, ylHand, handRad, xrHand, yrHand; //hand set
 	int p2Factor; // applied in calculation depends on which player is using function
 	bool player2; // check if the ROI belongs to player 2
-	bool safe;
+	bool isTouching, hit;
+	int hitNo;
 
+	//Stamina bar attributes
+	int xBar, yBar, wBar, hBar, maxStat;
+	int xBox, yBox, wBox, hBox;
 	moTracker () {
 		//default setROI
 		xROI = 100;
@@ -58,17 +59,20 @@ public:
 		wROI = 150;
 		hROI = 150;
 
+		hBar = 30;
+		maxStat = 160;
+
 		//loop check
 		firstRun = true; //by default loop has to go through first run
 		limSet = false;  //by default no limits are set
 		p2Factor = 1;
 		player2 = false;
-		safe = true;
+		isTouching = false;
+		hit = false;
+		hitNo = 0;
 	}
-	
 	void feedNewframe (Mat frame) {
 		Mat diffPrev;
-
 		int x, y; //coordinates of pixel
 		//brightness of each pixel - on x,y-axis and the sum
 		int xMass, yMass, sMass, m;
@@ -85,16 +89,14 @@ public:
 		curFrame.copyTo (prevFrame);
 		frame.copyTo (curFrame);
 
-		inRange(frame, Scalar(0,0,160), Scalar(80,80,255), colorOutput);
-
-//		absdiff (prePrev, frame, diffPrev);
-//		cvtColor (diffPrev, diffPrev, CV_BGR2GRAY, 1);
+		absdiff (prePrev, frame, diffPrev);
+		cvtColor (diffPrev, diffPrev, CV_BGR2GRAY, 1);
 
 	// Compute COM
 		sMass = xMass = yMass = 0;
 		for (y = yROI; y < yROI + hROI; y++) {
 			for (x = xROI; x < xROI + wROI; x++) {
-				m = colorOutput.at<unsigned char>(y,x);
+				m = diffPrev.at<unsigned char>(y,x);
 				sMass += m;
 				xMass += m*x;
 				yMass += m*y;
@@ -105,7 +107,6 @@ public:
 			yCOM = yMass/sMass;
 		}
 	}
-
 	void updateROI (Mat frame) {
 		xROI = xCOM - wROI/2;
 		yROI = yCOM - hROI/2;
@@ -194,8 +195,6 @@ public:
 		headRad = (int)(wROI/4 * sqrt(2.0));
 		handRad = (int)(rFist.wROI/4);
 
-				// A black background to erase previous image
-		rectangle (frame, Rect(0,0, frame.cols, frame.rows), Scalar (0,0,0), -1);
 				// Head
 		circle (frame, Point(xHead, yHead), headRad, obColour, -1);
 				// Arms
@@ -211,7 +210,7 @@ public:
 		p2Factor = -1;
 		player2 = true;
 	}
-	void separatePlayers (Mat frame, moTracker t1, int r1, int r2, bool hit) { // Hit
+	void separatePlayers (Mat frame, moTracker t1, int r1, int r2, bool Hit) { // Hit
 		// keeps 2 players from overlapping one another
 		// t1 has the coordinates and radius of reference player
 		//the ROI using this function will have its position changed
@@ -232,52 +231,64 @@ public:
 			xCOM = (int) (frame.cols - t1.xCOM + p2Factor*cos(alpha)*rDist);
 			yCOM = (int) (frame.rows - t1.yCOM + p2Factor*sin(alpha)*rDist);
 //			cout<<"Updated: "<< xCOM <<", "<< yCOM <<endl;
-			if (hit) {
-				t1.safe = false; //???????????????????????????????????????????????????????
+			if (Hit) {
+				isTouching = true;
 			}
-		} else if (dist > rDist + 10 && hit == true) {
-			t1.safe = true;
+		} else if (dist > rDist + 100 && Hit == true) {
+			isTouching = false;
 		}
 		//			cout<<"Updated safe zone: "<< t1.safe <<endl;
 	}
-	void safezone () {
+	void stamina (Mat frame, moTracker LFist, moTracker rFist) {
+		// This function is only used by head motion tracker of each player
+		int countFrame = 0;
+		if (LFist.isTouching || rFist.isTouching) {
+			if (!hit && hitNo < 5) {
+				hitNo ++;
+				hit = true;
+			}
+		} else if (!LFist.isTouching && !rFist.isTouching) { hit = false; }
+		if (!hit) {
+			countFrame++;
+			if (countFrame % 300 == 0 && hitNo > 0) {
+				hitNo--;
+			}
+		} else countFrame = 0;
 
-	}
-};
-// Finish motion tracker & player setup
-
-class Stamina: public moTracker { //(hit, defend, recovery)
-public:
-	// Attributes
-	int xBar, yBar, wBar, hBar, maxStat; //Stamina bar attributes
-	// Behaviours
-	Stamina () {
-		hBar = 30;
-		maxStat = 160;
-	}
-	void bar (Mat frame, moTracker player) {
-		int xBox, yBox, wBox, hBox;
 		bool firstRun = true;
-		if (player.player2) {
-			xBar = (int)(frame.cols*1/16);
-			yBar = (int)(frame.rows*1/16);
-		} else {
-			xBar = (int)(frame.cols*11/16);
-			yBar = (int)(frame.rows*14/16);
-		}
 		if (firstRun) {
+			if (player2) {
+				xBar = (int)(frame.cols*1/16);
+				yBar = (int)(frame.rows*1/16);
+			} else {
+				xBar = (int)(frame.cols*11/16);
+				yBar = (int)(frame.rows*14/16);
+			}
 			wBar = maxStat;
-			firstRun = false;
 			xBox = xBar - 5;
 			yBox = yBar - 5;
 			wBox = wBar + 10;
 			hBox = hBar + 10;
+			firstRun = false;
 		}
+		wBar = (5 - hitNo)/5*maxStat;
 
-		rectangle (frame, Rect(xBar, yBar, wBar, hBar), Scalar (100,255,100), -1);
-		rectangle (frame, Rect(xBox, yBox, wBox, hBox), Scalar (255,255,255), 2);
+		if (!player2) {
+			xBar = (int)(frame.cols*11/16) + hitNo/5*maxStat;
+		}
+		// representation of stamina
+		rectangle (frame, Rect(xBar, yBar, wBar, hBar),
+									Scalar (100,255,100), -1);
+		// representation of stamina's case
+		rectangle (frame, Rect(xBox, yBox, wBox, hBox),
+									Scalar (255,255,255), 2);
+//		if (wBar == 0) {
+//			putText (frame, "You Lose!", Point (xBar, yBar + hBar),
+//					FONT_HERSHEY_SIMPLEX, 1, Scalar (255,255,128), 2);
+//		}
 	}
 };
+// Finish motion tracker & player setup
 
 int main(  int argc, char** argv ) {
 
@@ -289,26 +300,33 @@ int main(  int argc, char** argv ) {
 	if (!cap.isOpened()) {  // check if we succeeded
 		return -1;
 	}
-//	VideoCapture cap2(1); // open the default camera
-//	if (!cap2.isOpened()) {  // check if we succeeded
-//		return -1;
-//	}
+	VideoCapture cap2(1); // open the default camera
+	if (!cap2.isOpened()) {  // check if we succeeded
+		return -1;
+	}
 	cap  >> frame;
-//	cap2 >> frame2;
+	cap2 >> frame2;
 
+			// Declare players
 	Mat game = Mat (frame.rows, frame.cols, CV_8UC3);
 	moTracker p1, p1LHand, p1RHand;
-//	p1.p2(); p1LHand.p2(); p1RHand.p2();					//delete/////////////////////
-//	moTracker p2, p2LHand, p2RHand;
-//	p2.p2(); p2LHand.p2(); p2RHand.p2();
-	Stamina p1Stat;
+	moTracker p2, p2LHand, p2RHand;
+	p2.p2(); p2LHand.p2(); p2RHand.p2();
 
+			// Setup players
 	p1.setROI (frame.cols/2 - 100, 200, 200, 200);
 	p1.setLim (frame.rows/2, (int)(frame.cols*1/7), frame.rows,
 			(int)(frame.cols*6/7));
 	p1LHand.setROI (10, 300, 150, 150);
 	p1LHand.setColour (Scalar (255,0,0));					//delete/////////////////////
 	p1RHand.setROI (frame.cols-10, 300, 150, 150);
+
+	p2.setROI (frame2.cols/2 - 100, 200, 200, 200);
+	p2.setLim (frame2.rows/2, (int)(frame2.cols*1/7), frame2.rows,
+			(int)(frame2.cols*6/7));
+	p2LHand.setROI (10, 300, 150, 150);
+	p2.setColour (Scalar (0,255,0));					//delete/////////////////////
+	p2RHand.setROI (frame2.cols-10, 300, 150, 150);
 
 	int headROIradius = (int)(p1.wROI/3);
 	int handROIradius = (int)(p1LHand.wROI/3);
@@ -325,7 +343,7 @@ int main(  int argc, char** argv ) {
 		}
 
 		cap >> frame; // get a new frame from camera
-//		cap2 >> frame2;
+		cap2 >> frame2;
 
 		flip (frame, frame, 1); // flip frame horizontally
 		flip (frame2, frame2, 1);
@@ -334,36 +352,77 @@ int main(  int argc, char** argv ) {
 		p1LHand.feedNewframe(frame);
 		p1RHand.feedNewframe(frame);
 
+		p2.feedNewframe(frame2);
+		p2LHand.feedNewframe(frame2);
+		p2RHand.feedNewframe(frame2);
+
 				// Separate the ROIs of one player
 		p1LHand.separateROI (p1, headROIradius, handROIradius);
 		p1RHand.separateROI (p1, headROIradius, handROIradius);
 		if (p1.xlHand + p1.handRad < p1.xHead) {
 			p1RHand.separateROI (p1LHand, p1.handRad, p1.handRad);
-		}
-		if (p1.xrHand - p1.handRad >= p1.xHead) {
+		} else {
 			p1LHand.separateROI (p1RHand, p1.handRad, p1.handRad);
 		}
 
-		p1.updateROI(frame);
-		p1LHand.updateROI(frame);
-//delete		cout<<"New COM: "<< p1LHand.xCOM<<", "<< p1LHand.yCOM <<endl;
-		p1RHand.updateROI(frame);
+		p2LHand.separateROI (p2, headROIradius, handROIradius);
+		p2RHand.separateROI (p2, headROIradius, handROIradius);
+		if (p2.xlHand + p2.handRad < p2.xHead) {
+			p2RHand.separateROI (p2LHand, p2.handRad, p2.handRad);
+		} else {
+			p2LHand.separateROI (p2RHand, p2.handRad, p2.handRad);
+		}
 
-				//Visualise each ROI on frame
+		// Separate the two players
+		if (p1.ylHand - p1.handRad >= frame.rows/2) {
+			p2LHand.separatePlayers(frame, p1LHand, handROIradius, handROIradius, false);
+			p2RHand.separatePlayers(frame, p1LHand, handROIradius, handROIradius, false);
+			p2LHand.separatePlayers(frame, p1RHand, handROIradius, handROIradius, false);
+			p2RHand.separatePlayers(frame, p1RHand, handROIradius, handROIradius, false);
+		} else {
+			p1LHand.separatePlayers(frame, p2LHand, handROIradius, handROIradius, false);
+			p1RHand.separatePlayers(frame, p2LHand, handROIradius, handROIradius, false);
+			p1LHand.separatePlayers(frame, p2RHand, handROIradius, handROIradius, false);
+			p1RHand.separatePlayers(frame, p2RHand, handROIradius, handROIradius, false);
+		}
+		p2LHand.separatePlayers(frame, p1, headROIradius, handROIradius, true);
+		p2RHand.separatePlayers(frame, p1, headROIradius, handROIradius, true);
+		p1LHand.separatePlayers(frame, p2, headROIradius, handROIradius, true);
+		p1RHand.separatePlayers(frame, p2, headROIradius, handROIradius, true);
+
+		// Update final position of ROI
+//		p1.updateROI(frame);
+//		p1LHand.updateROI(frame);
+//		p1RHand.updateROI(frame);
+
+		p2.updateROI(frame2);
+		p2LHand.updateROI(frame2);
+		p2RHand.updateROI(frame2);
+
+				// Visualise each ROI on frame
 		p1.drawROI (frame);
 		p1LHand.drawROI (frame);
 		p1RHand.drawROI (frame);
 
-		imshow("Player 1 ROI", frame);
-//		imshow("Player 2 ROI", frame2);
+		p2.drawROI (frame2);
+		p2LHand.drawROI (frame2);
+		p2RHand.drawROI (frame2);
 
+		imshow("Player 1 ROI", frame);
+		imshow("Player 2 ROI", frame2);
+
+				// Visualise players on game window
+		// A black background to erase previous image
+		rectangle (game, Rect(0,0, frame.cols, frame.rows), Scalar (0,0,0), -1);
 		p1.drawPlayer (game, p1LHand, p1RHand);
-		p1Stat.bar (game, p1);
+		p1.stamina (game, p2LHand, p2RHand);
+		p2.drawPlayer (game, p2LHand, p2RHand);
+		p2.stamina (game, p1LHand, p1RHand);
 
 		imshow("Boxing Game 1", game);
-//		flip (game, game, -1); // flip image on both axes
-//		imshow("Boxing Game 2", game);
-//		flip (game, game, -1);
+		flip (game, game, -1); // flip image on both axes
+		imshow("Boxing Game 2", game);
+		flip (game, game, -1);
 
 		if (waitKey(20) >= 0) {
 			break;
