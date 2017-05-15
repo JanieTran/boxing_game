@@ -48,6 +48,9 @@ public:
 	bool player2; // check if the ROI belongs to player 2
 	bool isTouching, hit;
 	int hitNo;
+	int xlEye;
+	int xrEye;
+	int yEye;
 
 	//Stamina bar attributes
 	int xBar, yBar, wBar, hBar, maxStat;
@@ -57,8 +60,8 @@ public:
 		//default setROI
 		xROI = 100;
 		yROI = 200;
-		wROI = 150;
-		hROI = 150;
+		wROI = 50;
+		hROI = 50;
 
 		hBar = 30;
 		maxStat = 160;
@@ -73,16 +76,18 @@ public:
 		hitNo = 0;
 		countFrame = 0;
 	}
-	void feedNewframe (Mat frame) {
+	void feedNewframe (Mat frame, Scalar darker, Scalar brighter) {
 		Mat diffPrev;
+		Mat colorOutput;
+
 		int x, y; //coordinates of pixel
 		//brightness of each pixel - on x,y-axis and the sum
 		int xMass, yMass, sMass, m;
 
 		if (firstRun) { //if this is the 1st Run!
-			frame.copyTo (curFrame);
-			frame.copyTo (prevFrame);
-			frame.copyTo (prePrev);
+//			frame.copyTo (curFrame);
+//			frame.copyTo (prevFrame);
+//			frame.copyTo (prePrev);
 			xCOM = xROI + wROI/2;
 			yCOM = yROI + hROI/2;
 		// Set up stamina bar
@@ -100,18 +105,20 @@ public:
 			hBox = hBar + 10;
 			firstRun = false; // 1st run is over
 		}
-		prevFrame.copyTo (prePrev);
-		curFrame.copyTo (prevFrame);
-		frame.copyTo (curFrame);
+//		prevFrame.copyTo (prePrev);
+//		curFrame.copyTo (prevFrame);
+//		frame.copyTo (curFrame);
+//
+//		absdiff (prePrev, frame, diffPrev);
+//		cvtColor (diffPrev, diffPrev, CV_BGR2GRAY, 1);
 
-		absdiff (prePrev, frame, diffPrev);
-		cvtColor (diffPrev, diffPrev, CV_BGR2GRAY, 1);
+		inRange(frame, darker, brighter, colorOutput);
 
 	// Compute COM
 		sMass = xMass = yMass = 0;
 		for (y = yROI; y < yROI + hROI; y++) {
 			for (x = xROI; x < xROI + wROI; x++) {
-				m = diffPrev.at<unsigned char>(y,x);
+				m = colorOutput.at<unsigned char>(y,x);
 				sMass += m;
 				xMass += m*x;
 				yMass += m*y;
@@ -192,6 +199,11 @@ public:
 	}
 	// Behaviours of a player
 	void drawPlayer (Mat frame, moTracker leftFist, moTracker rFist) {
+		int eyeRad = (int) headRad/10;
+
+		headRad = (int)(wROI/2);
+		handRad = (int)(rFist.wROI/2);
+
 		if (player2) {
 			xHead = frame.cols - xCOM;
 			yHead = frame.rows - yCOM;
@@ -199,6 +211,9 @@ public:
 			ylHand = frame.rows - leftFist.yCOM;
 			xrHand = frame.cols - rFist.xCOM;
 			yrHand = frame.rows - rFist.yCOM;
+			xlEye = frame.cols - (xCOM - headRad/3);
+			xrEye = frame.cols - (xCOM + headRad/3);
+			yEye = frame.rows - (yCOM - headRad/3);
 		} else {
 			xHead = xCOM;
 			yHead = yCOM;
@@ -206,9 +221,10 @@ public:
 			ylHand = leftFist.yCOM;
 			xrHand = rFist.xCOM;
 			yrHand = rFist.yCOM;
+			xlEye = xCOM - headRad/3;
+			xrEye = xCOM + headRad/3;
+			yEye = yCOM - headRad/3;
 		}
-		headRad = (int)(wROI/4 * sqrt(2.0));
-		handRad = (int)(rFist.wROI/4);
 
 				// Head
 		circle (frame, Point(xHead, yHead), headRad, obColour, -1);
@@ -220,6 +236,35 @@ public:
 				// Fists
 		circle (frame, Point(xlHand, ylHand), handRad, obColour, -1);
 		circle (frame, Point(xrHand, yrHand), handRad, obColour, -1);
+				// Eyes
+		if (hit == true) {
+			line(frame, Point(xlEye - 10, yEye - 10), Point(xlEye + 10, yEye + 10), Scalar(0,0,0), 4);
+			line(frame, Point(xlEye + 10, yEye - 10), Point(xlEye - 10, yEye + 10), Scalar(0,0,0), 4);
+
+			line(frame, Point(xrEye - 10, yEye - 10), Point(xrEye + 10, yEye + 10), Scalar(0,0,0), 4);
+			line(frame, Point(xrEye + 10, yEye - 10), Point(xrEye - 10, yEye + 10), Scalar(0,0,0), 4);
+		} else {
+			circle(frame, Point(xlEye, yEye), eyeRad, Scalar(0,0,0), -1);
+			circle(frame, Point(xrEye, yEye), eyeRad, Scalar(0,0,0), -1);
+		}
+				// Smile
+		int xSmile = xHead;
+		int ySmile = yHead;
+
+		if (hit == true) {
+			if (player2) {
+				circle(frame, Point(xHead, yHead - 20), 20, Scalar(0,0,0), -1);
+			} else {
+				circle(frame, Point(xHead, yHead + 40), 20, Scalar(0,0,0), -1);
+			}
+		} else {
+			if (player2) {
+				ellipse(frame, Point(xSmile, ySmile), Size(headRad/2, headRad/2), 180, 0, 180, Scalar(0,0,0), 4, 8);
+			} else {
+				ellipse(frame, Point(xSmile, ySmile), Size(headRad/2, headRad/2), 180, 0, -180, Scalar(0,0,0), 4, 8);
+			}
+		}
+
 	}
 	void p2 () {
 		p2Factor = -1;
@@ -304,7 +349,7 @@ int main(  int argc, char** argv ) {
 		return -1;
 	}
 	cap  >> frame;
-	cap2 >> frame2;						
+	cap2 >> frame2;
 
 			// Declare players
 	Mat game = Mat (frame.rows, frame.cols, CV_8UC3);
@@ -313,19 +358,20 @@ int main(  int argc, char** argv ) {
 	p2.p2(); p2LHand.p2(); p2RHand.p2();
 
 			// Setup players
-	p1.setROI (frame.cols/2 - 100, 200, 200, 200);
+	p1.setROI (frame.cols/2 - 100, 200, 150, 150);
+	p1.setColour(Scalar(255,0,0));
 	p1.setLim (frame.rows/2, (int)(frame.cols*1/7), frame.rows,
 			(int)(frame.cols*6/7));
-	p1LHand.setROI (10, 300, 150, 150);
+	p1LHand.setROI (10, 300, 100, 100);
 	p1LHand.setColour (Scalar (255,0,0));					//delete/////////////////////
-	p1RHand.setROI (frame.cols-10, 300, 150, 150);
+	p1RHand.setROI (frame.cols-10, 300, 100, 100);
 
-	p2.setROI (frame2.cols/2 - 100, 200, 200, 200);
+	p2.setROI (frame2.cols/2 - 100, 200, 150, 150);
 	p2.setLim (frame2.rows/2, (int)(frame2.cols*1/7), frame2.rows,
 			(int)(frame2.cols*6/7));
-	p2LHand.setROI (10, 300, 150, 150);
+	p2LHand.setROI (10, 300, 100, 100);
 	p2.setColour (Scalar (0,255,0));					//delete/////////////////////
-	p2RHand.setROI (frame2.cols-10, 300, 150, 150);
+	p2RHand.setROI (frame2.cols-10, 300, 100, 100);
 
 	int headROIradius = (int)(p1.wROI/3);
 	int handROIradius = (int)(p1LHand.wROI/3);
@@ -342,18 +388,19 @@ int main(  int argc, char** argv ) {
 		}
 
 		cap >> frame; // get a new frame from camera
-		cap2 >> frame2;							
+		cap2 >> frame2;
 
 		flip (frame, frame, 1); // flip frame horizontally
 		flip (frame2, frame2, 1);
-				//Calculate COM and feed each frame captured
-		p1.feedNewframe(frame);
-		p1LHand.feedNewframe(frame);
-		p1RHand.feedNewframe(frame);
 
-		p2.feedNewframe(frame2);
-		p2LHand.feedNewframe(frame2);
-		p2RHand.feedNewframe(frame2);
+				//Calculate COM and feed each frame captured
+		p1.feedNewframe(frame, Scalar(0,168,168), Scalar(94,255,255));
+		p1LHand.feedNewframe(frame, Scalar(138,97,0), Scalar(255,210,106));
+		p1RHand.feedNewframe(frame, Scalar(138,97,0), Scalar(255,210,106));
+
+		p2.feedNewframe(frame2, Scalar(0,168,168), Scalar(94,255,255));
+		p2LHand.feedNewframe(frame2, Scalar(138,97,0), Scalar(255,210,106));
+		p2RHand.feedNewframe(frame2, Scalar(138,97,0), Scalar(255,210,106));
 
 				// Separate the ROIs of one player
 		p1LHand.separateROI (p1, headROIradius, handROIradius);
@@ -428,7 +475,7 @@ int main(  int argc, char** argv ) {
 		}
 	}
 
+
 	printf("Final frameCount = %d \n", frameCount);
 	return 0;
 }
-
