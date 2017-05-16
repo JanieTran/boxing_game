@@ -375,14 +375,13 @@ int main(  int argc, char** argv ) {
 	p1.setLim (frame.rows/2, (int)(frame.cols*1/7), frame.rows,
 			(int)(frame.cols*6/7));
 	p1LHand.setROI (10, 300, 100, 100);
-	p1LHand.setColour (Scalar (255,0,0));					//delete/////////////////////
 	p1RHand.setROI (frame.cols-10, 300, 100, 100);
 
 	p2.setROI (frame2.cols/2 - 100, 200, 150, 150);
 	p2.setLim (frame2.rows/2, (int)(frame2.cols*1/7), frame2.rows,
 			(int)(frame2.cols*6/7));
 	p2LHand.setROI (10, 300, 100, 100);
-	p2.setColour (Scalar (0,255,0));					//delete/////////////////////
+	p2.setColour (Scalar (0,255,0));					
 	p2RHand.setROI (frame2.cols-10, 300, 100, 100);
 
 	int headROIradius = (int)(p1.wROI/3);
@@ -397,9 +396,6 @@ int main(  int argc, char** argv ) {
 
 		cap >> frame; // get a new frame from camera
 		cap2 >> frame2;
-
-		flip (frame, frame, 1); // flip frame horizontally
-		flip (frame2, frame2, 1);
 
 				//Calculate COM and feed each frame captured
 		p1.feedNewframe(frame, Scalar(10,10,194), Scalar(125,125,249));
