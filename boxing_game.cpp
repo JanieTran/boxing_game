@@ -12,6 +12,7 @@
 #include <opencv2/videoio/videoio.hpp>
 #include <iostream>
 #include <cmath>
+#include <string>
 
 using namespace std;
 using namespace cv;   // a "shortcut" for directly using OpenCV functions
@@ -56,6 +57,7 @@ public:
 	int xBar, yBar, wBar, hBar, maxStat;
 	int xBox, yBox, wBox, hBox;
 	int countFrame;
+
 	moTracker () {
 		//default setROI
 		xROI = 100;
@@ -85,9 +87,6 @@ public:
 		int xMass, yMass, sMass, m;
 
 		if (firstRun) { //if this is the 1st Run!
-//			frame.copyTo (curFrame);
-//			frame.copyTo (prevFrame);
-//			frame.copyTo (prePrev);
 			xCOM = xROI + wROI/2;
 			yCOM = yROI + hROI/2;
 		// Set up stamina bar
@@ -105,12 +104,6 @@ public:
 			hBox = hBar + 10;
 			firstRun = false; // 1st run is over
 		}
-//		prevFrame.copyTo (prePrev);
-//		curFrame.copyTo (prevFrame);
-//		frame.copyTo (curFrame);
-//
-//		absdiff (prePrev, frame, diffPrev);
-//		cvtColor (diffPrev, diffPrev, CV_BGR2GRAY, 1);
 
 		inRange(frame, darker, brighter, colorOutput);
 
@@ -291,17 +284,17 @@ public:
 			}
 			xCOM = (int) (frame.cols - t1.xCOM + p2Factor*cos(alpha)*rDist);
 			yCOM = (int) (frame.rows - t1.yCOM + p2Factor*sin(alpha)*rDist);
-
 		}
 		if (dist > rDist - 10 && dist < rDist + 10 && Hit == true){
 			isTouching = true;
 		}
-		else if (dist > (rDist + 100) && Hit == true) {
+		else if (dist > (rDist + 30) && Hit == true) {
 			isTouching = false;
 		}
 	}
 	void stamina (Mat frame, moTracker LFist, moTracker rFist) {
 		// This function is only used by head motion tracker of each player
+
 		if (LFist.isTouching || rFist.isTouching) {
 			if (!hit && hitNo < 5) {
 				hitNo ++;
@@ -322,14 +315,12 @@ public:
 		}
 		// representation of stamina
 		rectangle (frame, Rect(xBar, yBar, wBar, hBar),
-									Scalar (100,255,100), -1);
+									Scalar (0,0,255), -1);
+
 		// representation of stamina's case
 		rectangle (frame, Rect(xBox, yBox, wBox, hBox),
 									Scalar (255,255,255), 2);
-//		if (wBar == 0) {
-//			putText (frame, "You Lose!", Point (xBar, yBar + hBar),
-//					FONT_HERSHEY_SIMPLEX, 1, Scalar (255,255,128), 2);
-//		}
+
 	}
 };
 // Finish motion tracker & player setup
@@ -339,6 +330,26 @@ int main(  int argc, char** argv ) {
 	int frameCount;
 	Mat frame;
 	Mat frame2;
+
+	FILE *history;
+
+	string winner;
+
+	char player1[10];
+	char player2[10];
+
+	do {
+		printf("Enter name for Player 1: \n");
+		scanf("%s", player1);
+	} while (player1 == NULL);
+
+	do {
+		printf("Enter name for Player 2: \n");
+		scanf("%s", player2);
+	} while (player2 == NULL);
+
+	string player1Str = player1;
+	string player2Str = player2;
 
 	VideoCapture cap(0); // open the default camera
 	if (!cap.isOpened()) {  // check if we succeeded
@@ -353,6 +364,7 @@ int main(  int argc, char** argv ) {
 
 			// Declare players
 	Mat game = Mat (frame.rows, frame.cols, CV_8UC3);
+	Mat game2 = Mat (frame.rows, frame.cols, CV_8UC3);
 	moTracker p1, p1LHand, p1RHand;
 	moTracker p2, p2LHand, p2RHand;
 	p2.p2(); p2LHand.p2(); p2RHand.p2();
@@ -383,10 +395,6 @@ int main(  int argc, char** argv ) {
 
 	for(frameCount = 0; frameCount < 100000000; frameCount++) {
 
-		if (frameCount % 100 == 0) {
-			printf("frameCount = %d \n", frameCount);
-		}
-
 		cap >> frame; // get a new frame from camera
 		cap2 >> frame2;
 
@@ -394,13 +402,13 @@ int main(  int argc, char** argv ) {
 		flip (frame2, frame2, 1);
 
 				//Calculate COM and feed each frame captured
-		p1.feedNewframe(frame, Scalar(0,168,168), Scalar(94,255,255));
-		p1LHand.feedNewframe(frame, Scalar(138,97,0), Scalar(255,210,106));
-		p1RHand.feedNewframe(frame, Scalar(138,97,0), Scalar(255,210,106));
+		p1.feedNewframe(frame, Scalar(10,10,194), Scalar(125,125,249));
+		p1LHand.feedNewframe(frame, Scalar(0,164,164), Scalar(125,255,255));
+		p1RHand.feedNewframe(frame, Scalar(0,164,164), Scalar(125,255,255));
 
-		p2.feedNewframe(frame2, Scalar(0,168,168), Scalar(94,255,255));
-		p2LHand.feedNewframe(frame2, Scalar(138,97,0), Scalar(255,210,106));
-		p2RHand.feedNewframe(frame2, Scalar(138,97,0), Scalar(255,210,106));
+		p2.feedNewframe(frame2, Scalar(10,10,194), Scalar(125,125,249));
+		p2LHand.feedNewframe(frame2, Scalar(0,164,164), Scalar(125,255,255));
+		p2RHand.feedNewframe(frame2, Scalar(0,164,164), Scalar(125,255,255));
 
 				// Separate the ROIs of one player
 		p1LHand.separateROI (p1, headROIradius, handROIradius);
@@ -457,24 +465,66 @@ int main(  int argc, char** argv ) {
 		imshow("Player 1 ROI", frame);
 		imshow("Player 2 ROI", frame2);
 
-				// Visualise players on game window
-		// A black background to erase previous image
-		rectangle (game, Rect(0,0, frame.cols, frame.rows), Scalar (0,0,0), -1);
-		p1.drawPlayer (game, p1LHand, p1RHand);
-		p1.stamina (game, p2LHand, p2RHand);
-		p2.drawPlayer (game, p2LHand, p2RHand);
-		p2.stamina (game, p1LHand, p1RHand);
+		if (not (p1.wBar == 0 || p2.wBar == 0)) {
+					// Visualise players on game window
+				// A black background to erase previous image
 
-		imshow("Boxing Game 1", game);
-		flip (game, game, -1); // flip image on both axes
-		imshow("Boxing Game 2", game);
-		flip (game, game, -1);
+			rectangle (game, Rect(0,0, frame.cols, frame.rows), Scalar (0,0,0), -1);
+			p1.drawPlayer (game, p1LHand, p1RHand);
+			p1.stamina (game, p2LHand, p2RHand);
+			p2.drawPlayer (game, p2LHand, p2RHand);
+			p2.stamina (game, p1LHand, p1RHand);
+
+			game.copyTo(game2);
+
+			putText(game, player2Str, Point(400,70), FONT_HERSHEY_PLAIN, 3, Scalar(255,255,255), 2);
+			putText(game, player1Str, Point(150,450), FONT_HERSHEY_PLAIN, 3, Scalar(255,255,255), 2);
+
+			imshow("Boxing Game 1", game);
+
+			flip (game2, game2, -1); // flip image on both axes
+			putText(game2, player2Str, Point(400,70), FONT_HERSHEY_PLAIN, 3, Scalar(255,255,255), 2);
+			putText(game2, player1Str, Point(150,450), FONT_HERSHEY_PLAIN, 3, Scalar(255,255,255), 2);
+			imshow("Boxing Game 2", game2);
+//			flip (game, game, -1);
+		}
+
+		if (p1.wBar == 0) {
+			winner = player2Str;
+
+			rectangle (game, Rect(0,0, frame.cols, frame.rows), Scalar (0,0,0), -1);
+			putText(game, "You Win!", Point(80,300), FONT_HERSHEY_TRIPLEX, 3, Scalar(0,0,255), 2, 8);
+			imshow("Boxing Game 2", game);
+
+			rectangle (game, Rect(0,0, frame.cols, frame.rows), Scalar (0,0,0), -1);
+			putText(game, "You Lose!", Point(70,250), FONT_HERSHEY_TRIPLEX, 3, Scalar(0,0,255), 2, 8);
+			imshow("Boxing Game 1", game);
+		}
+
+		else if (p2.wBar == 0) {
+			winner = player1Str;
+
+			rectangle (game, Rect(0,0, frame.cols, frame.rows), Scalar (0,0,0), -1);
+			putText(game, "You Win!", Point(80,300), FONT_HERSHEY_TRIPLEX, 3, Scalar(0,0,255), 2, 8);
+			imshow("Boxing Game 1", game);
+
+			rectangle (game, Rect(0,0, frame.cols, frame.rows), Scalar (0,0,0), -1);
+			putText(game, "You Lose!", Point(70,250), FONT_HERSHEY_TRIPLEX, 3, Scalar(0,0,255), 2, 8);
+			imshow("Boxing Game 2", game);
+		}
+
 
 		if (waitKey(20) >= 0) {
 			break;
 		}
 	}
 
+	char winnerChar[winner.size() + 1];
+	strcpy(winnerChar, winner.c_str());
+
+	history = fopen("winners.txt", "a");
+	fprintf(history, "%s \n", winnerChar);
+	fclose(history);
 
 	printf("Final frameCount = %d \n", frameCount);
 	return 0;
