@@ -388,10 +388,10 @@ int main(  int argc, char** argv ) {
 	int headROIradius = (int)(p1.wROI/3);
 	int handROIradius = (int)(p1LHand.wROI/3);
 
-	namedWindow("Player 1 ROI", CV_WINDOW_AUTOSIZE);
+	namedWindow("Player 1 ROI", CV_WINDOW_NORMAL);
 	namedWindow("Player 2 ROI", CV_WINDOW_NORMAL);
-	namedWindow("Boxing Game 1", CV_WINDOW_AUTOSIZE);
-	namedWindow("Boxing Game 2", CV_WINDOW_AUTOSIZE);
+	namedWindow("Boxing Game 1", CV_WINDOW_NORMAL);
+	namedWindow("Boxing Game 2", CV_WINDOW_NORMAL);
 
 	for(frameCount = 0; frameCount < 100000000; frameCount++) {
 
@@ -483,8 +483,8 @@ int main(  int argc, char** argv ) {
 			imshow("Boxing Game 1", game);
 
 			flip (game2, game2, -1); // flip image on both axes
-			putText(game2, player2Str, Point(400,70), FONT_HERSHEY_PLAIN, 3, Scalar(255,255,255), 2);
-			putText(game2, player1Str, Point(150,450), FONT_HERSHEY_PLAIN, 3, Scalar(255,255,255), 2);
+			putText(game2, player1Str, Point(400,70), FONT_HERSHEY_PLAIN, 3, Scalar(255,255,255), 2);
+			putText(game2, player2Str, Point(150,450), FONT_HERSHEY_PLAIN, 3, Scalar(255,255,255), 2);
 			imshow("Boxing Game 2", game2);
 //			flip (game, game, -1);
 		}
