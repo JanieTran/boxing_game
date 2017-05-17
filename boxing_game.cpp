@@ -79,7 +79,6 @@ public:
 		countFrame = 0;
 	}
 	void feedNewframe (Mat frame, Scalar darker, Scalar brighter) {
-		Mat diffPrev;
 		Mat colorOutput;
 
 		int x, y; //coordinates of pixel
