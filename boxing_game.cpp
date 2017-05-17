@@ -380,11 +380,8 @@ int main(  int argc, char** argv ) {
 	p2.setLim (frame2.rows/2, (int)(frame2.cols*1/7), frame2.rows,
 			(int)(frame2.cols*6/7));
 	p2LHand.setROI (10, 300, 100, 100);
-	p2.setColour (Scalar (0,255,0));					
+	p2.setColour (Scalar (0,255,0));
 	p2RHand.setROI (frame2.cols-10, 300, 100, 100);
-
-	int headROIradius = (int)(p1.wROI/3);
-	int handROIradius = (int)(p1LHand.wROI/3);
 
 	namedWindow("Player 1 ROI", CV_WINDOW_NORMAL);
 	namedWindow("Player 2 ROI", CV_WINDOW_NORMAL);
@@ -406,23 +403,23 @@ int main(  int argc, char** argv ) {
 		p2RHand.feedNewframe(frame2, Scalar(0,164,164), Scalar(125,255,255));
 
 				// Separate the ROIs of one player
-		p1LHand.separateROI (p1, headROIradius, handROIradius);
-		p1RHand.separateROI (p1, headROIradius, handROIradius);
+		p1LHand.separateROI (p1, p1.headRad, p1.handRad);
+		p1RHand.separateROI (p1, p1.headRad, p1.handRad);
 		if (p1.xlHand + p1.handRad < p1.xHead) {
 			p1RHand.separateROI (p1LHand, p1.handRad, p1.handRad);
 		} else {
 			p1LHand.separateROI (p1RHand, p1.handRad, p1.handRad);
 		}
 
-		p2LHand.separateROI (p2, headROIradius, handROIradius);
-		p2RHand.separateROI (p2, headROIradius, handROIradius);
+		p2LHand.separateROI (p2,p2.headRad, p2.handRad);
+		p2RHand.separateROI (p2, p2.headRad, p2.handRad);
 		if (p2.xlHand + p2.handRad < p2.xHead) {
 			p2RHand.separateROI (p2LHand, p2.handRad, p2.handRad);
 		} else {
 			p2LHand.separateROI (p2RHand, p2.handRad, p2.handRad);
 		}
 
-		// Separate the two players
+			// Separate the two players
 		if (p1.ylHand - p1.handRad >= frame.rows/2) {
 			p2LHand.separatePlayers(frame, p1LHand, p1.handRad, p2.handRad, false);
 			p2RHand.separatePlayers(frame, p1LHand, p1.handRad, p2.handRad, false);
@@ -481,7 +478,6 @@ int main(  int argc, char** argv ) {
 			putText(game2, player1Str, Point(400,70), FONT_HERSHEY_PLAIN, 3, Scalar(255,255,255), 2);
 			putText(game2, player2Str, Point(150,450), FONT_HERSHEY_PLAIN, 3, Scalar(255,255,255), 2);
 			imshow("Boxing Game 2", game2);
-//			flip (game, game, -1);
 		}
 
 		if (p1.wBar == 0) {
